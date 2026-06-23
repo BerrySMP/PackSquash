@@ -152,7 +152,7 @@ async fn pack_mcmeta_with_bad_pack_format() {
 				r#"
 					{
 						"pack": {
-							"pack_format": -0.5,
+							"pack_format": "not a number",
 							"description": "My bad pack"
 						}
 					}"#
@@ -169,6 +169,105 @@ async fn pack_mcmeta_with_bad_pack_format() {
 async fn pack_mcmeta_without_expected_structure() {
 	assert!(
 		PackMeta::new(&MockVfs("42"), "").await.is_err(),
+		"Expected failure reading pack metadata"
+	);
+}
+
+#[tokio::test]
+async fn well_formed_pack_mcmeta_with_min_max_format_works() {
+	// The modern scheme (Minecraft 25w31a+, e.g. 26.1 packs): an inclusive
+	// min_format/max_format range and no pack_format key.
+	PackMeta::new(
+		&MockVfs(
+			r#"
+				{
+					"pack": {
+						"description": "My pack",
+						"min_format": 75,
+						"max_format": 199
+					}
+				}"#
+		),
+		""
+	)
+	.await
+	.expect("Unexpected failure reading pack metadata");
+}
+
+#[tokio::test]
+async fn well_formed_pack_mcmeta_with_min_max_format_arrays_works() {
+	// min_format/max_format may be [major, minor] arrays.
+	PackMeta::new(
+		&MockVfs(
+			r#"
+				{
+					"pack": {
+						"description": "My pack",
+						"min_format": [84, 0],
+						"max_format": [84, 5]
+					}
+				}"#
+		),
+		""
+	)
+	.await
+	.expect("Unexpected failure reading pack metadata");
+}
+
+#[tokio::test]
+async fn well_formed_pack_mcmeta_with_float_pack_format_works() {
+	// Minecraft truncates a decimal pack_format to an integer (69.0 -> 69).
+	PackMeta::new(
+		&MockVfs(
+			r#"
+				{
+					"pack": {
+						"pack_format": 69.0,
+						"description": "My pack"
+					}
+				}"#
+		),
+		""
+	)
+	.await
+	.expect("Unexpected failure reading pack metadata");
+}
+
+#[tokio::test]
+async fn well_formed_pack_mcmeta_with_supported_formats_works() {
+	PackMeta::new(
+		&MockVfs(
+			r#"
+				{
+					"pack": {
+						"description": "My pack",
+						"pack_format": 15,
+						"supported_formats": [15, 42]
+					}
+				}"#
+		),
+		""
+	)
+	.await
+	.expect("Unexpected failure reading pack metadata");
+}
+
+#[tokio::test]
+async fn pack_mcmeta_with_no_format_fields() {
+	assert!(
+		PackMeta::new(
+			&MockVfs(
+				r#"
+					{
+						"pack": {
+							"description": "My pack"
+						}
+					}"#
+			),
+			""
+		)
+		.await
+		.is_err(),
 		"Expected failure reading pack metadata"
 	);
 }
